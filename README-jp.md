@@ -205,6 +205,21 @@ python data/prog/finetune_mt5_summarizer.py \
 
 既定の LoRA 設定は `r=8`、`alpha=16`、`dropout=0.05`、target modules は `q` と `v` です。出力先は `runs/mt5-small/lora/<condition>/` です。
 
+`google/mt5-small` より強い日本語モデルを試す場合は、`retrieva-jp/t5-base-long` を指定できます。
+
+```bash
+python data/prog/finetune_mt5_summarizer.py \
+  --condition baseline \
+  --tuning-mode lora \
+  --model-id retrieva-jp/t5-base-long \
+  --output-root runs/retrieva-t5-base-long \
+  --learning-rate 1e-3 \
+  --no-repeat-ngram-size 3 \
+  --repetition-penalty 1.2
+```
+
+この実験結果は `experiments/retrieva-t5-base-long-lora-comparison.md` に記録しています。
+
 学習済みモデルから test 予測だけを再生成したい場合:
 
 ```bash

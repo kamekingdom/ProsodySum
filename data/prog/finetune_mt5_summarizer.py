@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fine-tune google/mt5-small for transcript summarization."""
+"""Fine-tune a seq2seq model for transcript summarization."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import argparse
 import inspect
 import json
 import random
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,10 @@ def char_rouge_l(prediction: str, reference: str) -> float:
 
 def sanitize_token_ids(token_ids: np.ndarray, pad_token_id: int) -> np.ndarray:
     return np.where(token_ids < 0, pad_token_id, token_ids)
+
+
+def clean_generated_text(text: str) -> str:
+    return re.sub(r"<extra_id_\d+>", "", text).strip()
 
 
 @dataclass
@@ -169,6 +174,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-target-length", type=int, default=256)
     parser.add_argument("--generation-max-length", type=int, default=256)
     parser.add_argument("--num-beams", type=int, default=4)
+    parser.add_argument("--no-repeat-ngram-size", type=int, default=0)
+    parser.add_argument("--repetition-penalty", type=float, default=1.0)
+    parser.add_argument("--length-penalty", type=float, default=1.0)
     parser.add_argument("--epochs", type=float, default=10.0)
     parser.add_argument("--learning-rate", type=float, default=3e-4)
     parser.add_argument("--weight-decay", type=float, default=0.01)
@@ -222,6 +230,10 @@ def main() -> None:
         )
         model = get_peft_model(model, lora_config)
         model.print_trainable_parameters()
+
+    model.generation_config.no_repeat_ngram_size = args.no_repeat_ngram_size
+    model.generation_config.repetition_penalty = args.repetition_penalty
+    model.generation_config.length_penalty = args.length_penalty
     train_dataset = SummarizationDataset(
         train_records,
         tokenizer,
@@ -248,7 +260,7 @@ def main() -> None:
             generated_ids = generated_ids[0]
         generated_ids = sanitize_token_ids(generated_ids, tokenizer.pad_token_id)
         label_ids = np.where(label_ids == -100, tokenizer.pad_token_id, label_ids)
-        predictions = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        predictions = [clean_generated_text(text) for text in tokenizer.batch_decode(generated_ids, skip_special_tokens=True)]
         references = tokenizer.batch_decode(label_ids, skip_special_tokens=True)
         scores = [char_rouge_l(prediction, reference) for prediction, reference in zip(predictions, references)]
         return {"char_rouge_l": float(np.mean(scores))}
@@ -276,6 +288,7 @@ def main() -> None:
         sanitize_token_ids(prediction_ids, tokenizer.pad_token_id),
         skip_special_tokens=True,
     )
+    predictions = [clean_generated_text(text) for text in predictions]
     write_predictions(args.output_dir / "test_predictions.jsonl", test_records, predictions)
 
     metrics = {key: float(value) for key, value in predictions_output.metrics.items()}
