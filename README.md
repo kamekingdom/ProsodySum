@@ -123,6 +123,67 @@ python data/prog/transcribe.py \
   --force
 ```
 
+## mT5 Summarization Fine-Tuning
+
+This repository supports a two-condition comparison for Japanese press conference and Diet question-answer summarization with `google/mt5-small`.
+
+Experimental conditions:
+
+- Baseline FT: input is the transcript text only.
+- Proposed FT: input is the transcript with per-utterance `act` and `stance` labels.
+- Both conditions use the same target summaries from `data/summary`.
+
+Build the JSONL datasets:
+
+```bash
+python data/prog/prepare_summarization_data.py
+```
+
+This writes:
+
+```text
+data/summarization/baseline/train.jsonl
+data/summarization/baseline/valid.jsonl
+data/summarization/baseline/test.jsonl
+data/summarization/proposed/train.jsonl
+data/summarization/proposed/valid.jsonl
+data/summarization/proposed/test.jsonl
+```
+
+Run the Baseline fine-tuning:
+
+```bash
+python data/prog/finetune_mt5_summarizer.py \
+  --condition baseline \
+  --output-root runs/mt5-small \
+  --local-files-only \
+  --learning-rate 5e-5
+```
+
+Run the Proposed fine-tuning:
+
+```bash
+python data/prog/finetune_mt5_summarizer.py \
+  --condition proposed \
+  --output-root runs/mt5-small \
+  --local-files-only \
+  --learning-rate 5e-5
+```
+
+Each run writes the fine-tuned model, `test_predictions.jsonl`, and `test_metrics.json` under `runs/mt5-small/<condition>/`. The reported metric is character-level ROUGE-L, which is simple and robust for Japanese text without tokenization.
+
+The first Baseline/Proposed run is summarized in `experiments/mt5-small-baseline-vs-proposed.md`.
+
+If training finishes but prediction export needs to be regenerated, use:
+
+```bash
+python data/prog/finetune_mt5_summarizer.py \
+  --condition baseline \
+  --output-root runs/mt5-small \
+  --local-files-only \
+  --predict-only
+```
+
 ## Notes
 
 - Default Whisper model: `openai/whisper-large-v3-turbo`
