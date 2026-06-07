@@ -181,6 +181,30 @@ python data/prog/finetune_mt5_summarizer.py \
 
 評価指標は文字単位 ROUGE-L です。日本語に対して追加の分かち書きを使わずに比較できる、簡易で再現しやすい指標として使っています。
 
+## LoRA Fine-Tuning
+
+LoRA で学習する場合は `--tuning-mode lora` を付けます。full fine-tuning と同じ Baseline / Proposed 条件を、軽量な adapter 学習として実行できます。
+
+```bash
+python data/prog/finetune_mt5_summarizer.py \
+  --condition baseline \
+  --tuning-mode lora \
+  --output-root runs/mt5-small \
+  --local-files-only \
+  --learning-rate 1e-3
+```
+
+```bash
+python data/prog/finetune_mt5_summarizer.py \
+  --condition proposed \
+  --tuning-mode lora \
+  --output-root runs/mt5-small \
+  --local-files-only \
+  --learning-rate 1e-3
+```
+
+既定の LoRA 設定は `r=8`、`alpha=16`、`dropout=0.05`、target modules は `q` と `v` です。出力先は `runs/mt5-small/lora/<condition>/` です。
+
 学習済みモデルから test 予測だけを再生成したい場合:
 
 ```bash
@@ -194,6 +218,8 @@ python data/prog/finetune_mt5_summarizer.py \
 ## 初回実験結果
 
 初回の Baseline / Proposed 比較は `experiments/mt5-small-baseline-vs-proposed.md` に記録しています。
+
+LoRA を含めた比較は `experiments/mt5-small-lora-comparison.md` に記録しています。
 
 | 条件 | test loss | char ROUGE-L |
 | --- | ---: | ---: |

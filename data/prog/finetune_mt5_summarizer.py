@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 import torch
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from torch.utils.data import Dataset
 from transformers import (
     AutoModelForSeq2SeqLM,
@@ -160,6 +161,7 @@ def write_predictions(path: Path, records: list[dict[str, str]], predictions: li
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--condition", choices=("baseline", "proposed"), required=True)
+    parser.add_argument("--tuning-mode", choices=("full", "lora"), default="full")
     parser.add_argument("--dataset-dir", type=Path, default=default_data_dir() / "summarization")
     parser.add_argument("--output-root", type=Path, default=Path("runs/mt5-small"))
     parser.add_argument("--model-id", default="google/mt5-small")
@@ -178,6 +180,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--local-files-only", action="store_true")
     parser.add_argument("--predict-only", action="store_true")
+    parser.add_argument("--lora-r", type=int, default=8)
+    parser.add_argument("--lora-alpha", type=int, default=16)
+    parser.add_argument("--lora-dropout", type=float, default=0.05)
+    parser.add_argument("--lora-target-modules", nargs="+", default=["q", "v"])
     return parser.parse_args()
 
 
@@ -189,14 +195,33 @@ def main() -> None:
     set_seed(args.seed)
 
     args.output_dir = args.output_root / args.condition
+    if args.tuning_mode == "lora":
+        args.output_dir = args.output_root / "lora" / args.condition
     condition_dir = args.dataset_dir / args.condition
     train_records = load_jsonl(condition_dir / "train.jsonl")
     valid_records = load_jsonl(condition_dir / "valid.jsonl")
     test_records = load_jsonl(condition_dir / "test.jsonl")
 
-    model_path = args.output_dir if args.predict_only else args.model_id
-    tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=args.local_files_only)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_path, local_files_only=args.local_files_only)
+    tokenizer_path = args.output_dir if args.predict_only else args.model_id
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, local_files_only=args.local_files_only)
+
+    if args.predict_only and args.tuning_mode == "lora":
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(args.model_id, local_files_only=args.local_files_only)
+        model = PeftModel.from_pretrained(base_model, args.output_dir, local_files_only=args.local_files_only)
+    else:
+        model_path = args.output_dir if args.predict_only else args.model_id
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_path, local_files_only=args.local_files_only)
+
+    if not args.predict_only and args.tuning_mode == "lora":
+        lora_config = LoraConfig(
+            task_type=TaskType.SEQ_2_SEQ_LM,
+            r=args.lora_r,
+            lora_alpha=args.lora_alpha,
+            lora_dropout=args.lora_dropout,
+            target_modules=args.lora_target_modules,
+        )
+        model = get_peft_model(model, lora_config)
+        model.print_trainable_parameters()
     train_dataset = SummarizationDataset(
         train_records,
         tokenizer,
