@@ -6,6 +6,8 @@
 
 `google/mt5-small` を用いた要約実験について、数値指標だけでなく、Baseline / Proposed、Full fine-tuning / LoRA fine-tuning の違いによって生成要約が具体的にどう変化したかを確認する。
 
+生成された要約文そのものの具体例は `experiments/mt5-small-generated-summary-examples.md` に掲載する。
+
 比較対象:
 
 - Full FT + Baseline
