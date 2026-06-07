@@ -220,6 +220,33 @@ python data/prog/finetune_mt5_summarizer.py \
 
 この実験結果は `experiments/retrieva-t5-base-long-lora-comparison.md` に記録しています。
 
+追加改善として、文字起こしノイズを除去し、Proposed のラベル形式を短くした compact/clean データも作成できます。
+
+```bash
+python data/prog/prepare_summarization_data.py \
+  --output-dir data/summarization_compact_clean \
+  --proposed-format compact \
+  --clean-source
+```
+
+現時点の最良条件は、`retrieva-jp/t5-base-long` + LoRA + Baseline + compact/clean データ + 強めの反復抑制です。
+
+```bash
+python data/prog/finetune_mt5_summarizer.py \
+  --condition baseline \
+  --tuning-mode lora \
+  --dataset-dir data/summarization_compact_clean \
+  --model-id retrieva-jp/t5-base-long \
+  --output-root runs/retrieva-t5-base-long-compact-clean \
+  --local-files-only \
+  --learning-rate 1e-3 \
+  --no-repeat-ngram-size 5 \
+  --repetition-penalty 1.5 \
+  --length-penalty 0.8
+```
+
+この追加実験では、test char ROUGE-L が `0.1664` まで上がりました。詳細と生成例は `experiments/retrieva-t5-base-long-clean-generation-comparison.md` に記録しています。
+
 学習済みモデルから test 予測だけを再生成したい場合:
 
 ```bash
